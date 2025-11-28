@@ -13,7 +13,6 @@ unknown = []
 errors = []
 
 
-# ─── DISCORD EMBED SENDER ─────────────────────────────────────────────
 def send_embed(title, description, color):
     payload = {
         "embeds": [
@@ -31,32 +30,29 @@ def send_embed(title, description, color):
         pass
 
 
-# ─── CLASSIFIER ───────────────────────────────────────────────────────
-def classify(msg: str):
-    msg = str(msg).lower()
+def classify_by_status(status, message):
+    status = str(status).lower()
+    message = str(message).lower()
 
-    approved_words = ["approve", "approved", "success", "charged", "live"]
-    declined_words = ["declined", "dead", "insufficient", "incorrect", "blocked", "expired", "cvv", "cvc"]
+    if status in ["approved", "success", "live"]:
+        return "approved"
+    if status in ["declined", "dead"]:
+        return "declined"
 
-    for w in approved_words:
-        if w in msg:
-            return "approved"
-
-    for w in declined_words:
-        if w in msg:
-            return "declined"
+    if any(w in message for w in ["approved", "success", "charged", "live"]):
+        return "approved"
+    if any(w in message for w in ["declined", "dead", "incorrect", "expired", "cvc", "cvv", "blocked"]):
+        return "declined"
 
     return "unknown"
 
 
-# ─── INPUT ────────────────────────────────────────────────────────────
 with open(INPUT_FILE, "r", encoding="utf-8") as f:
     lines = f.read().splitlines()
 
-send_embed("Checker Started", "Requests are now being sent to API.", 3447003)  # Blue
+send_embed("Checker Started", "Checking started…", 3447003)
 
 
-# ─── MAIN LOOP ────────────────────────────────────────────────────────
 for index, line in enumerate(lines, start=1):
     if not line.strip():
         continue
@@ -67,61 +63,67 @@ for index, line in enumerate(lines, start=1):
         r = requests.get(url, timeout=30)
         data = r.json()
 
-        # Read BOTH message & raw_response
-        resp_obj = data.get("Response", {})
-        response_msg = (
-            resp_obj.get("message")
-            or resp_obj.get("raw_response")
-            or json.dumps(resp_obj)
+        # ✅ Read new format
+        response_msg = data.get("response")
+        status = data.get("status")
+
+        # ✅ Fallback old format
+        if not response_msg:
+            resp_obj = data.get("Response", {})
+            response_msg = resp_obj.get("message") or resp_obj.get("raw_response") or "No message"
+            status = status or resp_obj.get("status") or "Unknown"
+
+        # ✅ Classification
+        category = classify_by_status(status, response_msg)
+
+        # ✅ DISPLAY STRING + RESPONSE + STATUS
+        record = (
+            f"string `{line}`\n"
+            f"response {response_msg}\n"
+            f"status {status}"
         )
-
-        # Build display
-        pretty_json = json.dumps(data, indent=2)
-        record = f"request {url}\nresponse ```json\n{pretty_json}\n```"
-
-        category = classify(response_msg)
 
         if category == "approved":
             approved.append(record)
-            send_embed("✅ APPROVED", record, 3066993)   # Green
+            send_embed("✅ APPROVED", record, 3066993)
 
         elif category == "declined":
             declined.append(record)
-            send_embed("❌ DECLINED", record, 15158332)  # Red
+            send_embed("❌ DECLINED", record, 15158332)
 
         else:
             unknown.append(record)
-            send_embed("⚠ UNKNOWN", record, 15844367)   # Yellow
+            send_embed("⚠ UNKNOWN", record, 15844367)
 
         print(f"[{index}] {category.upper()} -> {response_msg}")
 
-        # If API rate limits, slow down more
+        # Delay handling
         if "too many requests" in str(response_msg).lower():
             time.sleep(5)
         else:
-            time.sleep(2.5)  # Normal delay
+            time.sleep(2.5)
 
     except json.JSONDecodeError:
-        record = f"request {url}\nresponse ❌ Invalid JSON"
+        record = f"string `{line}`\nresponse Invalid JSON\nstatus Error"
         errors.append(record)
         send_embed("🚫 ERROR", record, 9807270)
         time.sleep(3)
 
     except Exception as e:
-        record = f"request {url}\nresponse ❌ {str(e)}"
+        record = f"string `{line}`\nresponse {str(e)}\nstatus Error"
         errors.append(record)
         send_embed("🚫 ERROR", record, 9807270)
         time.sleep(3)
 
 
-# ─── SAVE FILES ───────────────────────────────────────────────────────
+# Save results
 open("approved.txt", "w", encoding="utf-8").write("\n".join(approved))
 open("declined.txt", "w", encoding="utf-8").write("\n".join(declined))
 open("unknown.txt", "w", encoding="utf-8").write("\n".join(unknown))
 open("error.txt", "w", encoding="utf-8").write("\n".join(errors))
 
 
-# ─── FINAL SUMMARY ────────────────────────────────────────────────────
+# Final summary
 summary = (
     f"✅ Approved: {len(approved)}\n"
     f"❌ Declined: {len(declined)}\n"
@@ -129,6 +131,6 @@ summary = (
     f"🚫 Errors: {len(errors)}"
 )
 
-send_embed("Finished Checking", summary, 5763719)  # Purple
+send_embed("Finished Checking", summary, 5763719)
 print("\n✅ DONE CHECKING")
 print(summary)
