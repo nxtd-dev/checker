@@ -4,7 +4,7 @@ import time
 
 INPUT_FILE = "list.txt"
 API_URL = "https://api.chkr.cc/"
-WEBHOOK_URL = "https://discord.com/api/webhooks/1443879354420559902/YkR6tWOSeIB8bl1XlqV6rGjA4eb9b8PQcX7rywqEjqOIgmIPIZ2rcIhWxjyaq3ECILDM""
+WEBHOOK_URL = "https://discord.com/api/webhooks/1443879354420559902/YkR6tWOSeIB8bl1XlqV6rGjA4eb9b8PQcX7rywqEjqOIgmIPIZ2rcIhWxjyaq3ECILDM"
 
 approved, declined, unknown, errors = [], [], [], []
 
